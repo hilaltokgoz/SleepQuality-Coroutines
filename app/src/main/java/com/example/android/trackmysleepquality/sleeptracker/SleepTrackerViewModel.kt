@@ -17,8 +17,13 @@
 package com.example.android.trackmysleepquality.sleeptracker
 
 import android.app.Application
+import android.provider.SyncStateContract.Helpers.insert
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.viewModelScope
 import com.example.android.trackmysleepquality.database.SleepDatabaseDao
+import com.example.android.trackmysleepquality.database.SleepNight
+import kotlinx.coroutines.launch
 
 /**
  * ViewModel for SleepTrackerFragment.
@@ -27,5 +32,39 @@ import com.example.android.trackmysleepquality.database.SleepDatabaseDao
 class SleepTrackerViewModel(
         val database: SleepDatabaseDao,
         application: Application) : AndroidViewModel(application) {
+
+        private var tonight= MutableLiveData<SleepNight?>()
+        init {
+            initializeTonight()
+        }
+
+        private fun initializeTonight() {
+                viewModelScope.launch {    //ViewModelScope'ta Coroutine başlatmak için kullanılır. //CoroutineBuilder a lambda yollanıyor{}
+                        tonight.value=getTonightDatabase()
+                }
+        }
+
+        private suspend fun getTonightDatabase(): SleepNight? {
+         var night=database.getTonight()  //VT'nından en yeni geceyi alır.
+                if (night?.endTimeMilli!= night?.startTimeMilli){
+                        night=null  //gece tamamlanmışsa null döndür.
+                }
+                return night  //hala o gecedeyse night döndür
+        }
+        ///CLİCK HANDLERS
+        fun onStartTracking(){
+                viewModelScope.launch {//Coroutine için başlatıldı
+                  val newNight=SleepNight()
+                  insert(newNight) //newNight VT nına kaydetmek için
+                        tonight.value=getTonightDatabase() //tonight güncelle
+
+                }
+        }
+
+        private suspend fun insert(night: SleepNight) {
+                database.insert(night)// night eklemek için DAO kullanın.
+        }
+
+
 }
 
