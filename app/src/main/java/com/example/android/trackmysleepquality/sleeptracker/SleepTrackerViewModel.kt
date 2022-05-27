@@ -17,12 +17,13 @@
 package com.example.android.trackmysleepquality.sleeptracker
 
 import android.app.Application
-import android.provider.SyncStateContract.Helpers.insert
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.Transformations
 import androidx.lifecycle.viewModelScope
 import com.example.android.trackmysleepquality.database.SleepDatabaseDao
 import com.example.android.trackmysleepquality.database.SleepNight
+import com.example.android.trackmysleepquality.formatNights
 import kotlinx.coroutines.launch
 
 /**
@@ -30,41 +31,59 @@ import kotlinx.coroutines.launch
  */
 //Class AndroidViewModel'ı extend almıştır.Bu sınıf Vm ile aynı fakat application context'i  yapıcı parametresi olarak alır.
 class SleepTrackerViewModel(
-        val database: SleepDatabaseDao,
-        application: Application) : AndroidViewModel(application) {
+    val database: SleepDatabaseDao,
+    application: Application
+) : AndroidViewModel(application) {
 
-        private var tonight= MutableLiveData<SleepNight?>()
-        init {
-            initializeTonight()
+    private var tonight = MutableLiveData<SleepNight?>()
+    private val nights = database.getAllNights() //tüm geceleri nights e ata.
+    val nightsString = Transformations.map(nights) { nights ->   //nights i Stringe çevir.
+        formatNights(nights, application.resources)
+    }
+    init {
+        initializeTonight()
+    }
+    private fun initializeTonight() {
+        viewModelScope.launch {    //ViewModelScope'ta Coroutine başlatmak için kullanılır. //CoroutineBuilder a lambda yollanıyor{}
+            tonight.value = getTonightDatabase()
         }
-
-        private fun initializeTonight() {
-                viewModelScope.launch {    //ViewModelScope'ta Coroutine başlatmak için kullanılır. //CoroutineBuilder a lambda yollanıyor{}
-                        tonight.value=getTonightDatabase()
-                }
+    }
+    private suspend fun getTonightDatabase(): SleepNight? {
+        var night = database.getTonight()  //VT'nından en yeni geceyi alır.
+        if (night?.endTimeMilli != night?.startTimeMilli) {
+            night = null  //gece tamamlanmışsa null döndür.
         }
-
-        private suspend fun getTonightDatabase(): SleepNight? {
-         var night=database.getTonight()  //VT'nından en yeni geceyi alır.
-                if (night?.endTimeMilli!= night?.startTimeMilli){
-                        night=null  //gece tamamlanmışsa null döndür.
-                }
-                return night  //hala o gecedeyse night döndür
+        return night  //hala o gecedeyse night döndür
+    }
+    ///CLİCK HANDLERS
+    fun onStartTracking() {
+        viewModelScope.launch {//Coroutine için başlatıldı
+            val newNight = SleepNight()
+            insert(newNight) //newNight VT nına kaydetmek için
+            tonight.value = getTonightDatabase() //tonight güncelle
         }
-        ///CLİCK HANDLERS
-        fun onStartTracking(){
-                viewModelScope.launch {//Coroutine için başlatıldı
-                  val newNight=SleepNight()
-                  insert(newNight) //newNight VT nına kaydetmek için
-                        tonight.value=getTonightDatabase() //tonight güncelle
-
-                }
+    }
+    private suspend fun insert(night: SleepNight) {
+        database.insert(night)// night eklemek için DAO kullanın.
+    }
+    fun onStopTracking() {
+        viewModelScope.launch {
+            val oldNight = tonight.value ?: return@launch
+            oldNight.endTimeMilli = System.currentTimeMillis()
+            update(oldNight)
         }
-
-        private suspend fun insert(night: SleepNight) {
-                database.insert(night)// night eklemek için DAO kullanın.
+    }
+    private suspend fun update(night: SleepNight) {
+        database.update(night)
+    }
+    fun onClear() {
+        viewModelScope.launch {
+            clear()
+            tonight.value = null
         }
-
-
+    }
+    suspend fun clear() {
+        database.clear()
+    }
 }
 
