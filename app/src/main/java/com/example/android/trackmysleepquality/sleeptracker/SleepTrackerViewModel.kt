@@ -37,6 +37,14 @@ class SleepTrackerViewModel(
     //LiveData & encapsulation
     private val _navigateToSleepQuality = MutableLiveData<SleepNight>()  //navigation' ı tetikleyen değişken.
     val navigateToSleepQuality: LiveData<SleepNight> get() = _navigateToSleepQuality
+     //SnackBar Encapsulation
+    private var _showSnackbarEvent = MutableLiveData<Boolean>()
+    val showSnackBarEvent: LiveData<Boolean>
+        get() = _showSnackbarEvent
+    //Snackbarı kapatma
+    fun doneShowingSnackbar() {
+        _showSnackbarEvent.value = false
+    }
     //Resetleme
     fun doneNavigating() {
         _navigateToSleepQuality.value = null
@@ -90,6 +98,18 @@ class SleepTrackerViewModel(
     }
     suspend fun clear() {
         database.clear()
+        _showSnackbarEvent.value = true
+    }
+
+    //Butonların görünür olup olmadığı
+    val startButtonVisible = Transformations.map(tonight) {
+        it == null
+    }
+    val stopButtonVisible = Transformations.map(tonight) {
+        it != null
+    }
+    val clearButtonVisible = Transformations.map(nights) {
+        it?.isNotEmpty()
     }
 }
 

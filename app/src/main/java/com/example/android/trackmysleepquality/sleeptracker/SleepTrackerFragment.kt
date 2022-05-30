@@ -73,6 +73,8 @@ class SleepTrackerFragment : Fragment() {
             }
 
         })
+        //SnackBar Observer
+        sleepTrackerViewModel.showSnackBarEvent.observe(this, Observer { })
         return binding.root
     }
 }
